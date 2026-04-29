@@ -1,0 +1,4 @@
+email,nombre,activo
+juan.perez@example.com,Juan Pérez,si
+maria.lopez@example.com,María López,no
+test.user@example.com,Test User,si
