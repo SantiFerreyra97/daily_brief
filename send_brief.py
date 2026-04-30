@@ -7,7 +7,7 @@ import json
 import os
 import re
 import smtplib
-from datetime import datetime
+from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Any
@@ -37,95 +37,177 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Daily Brief</title>
     <style>
-      body {
+      * {
         margin: 0;
         padding: 0;
-        background: #f5f3ee;
-        font-family: Georgia, serif;
-        color: #2c2c2c;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+        background-color: #ffffff;
+        color: #1a1a1a;
+        line-height: 1.6;
       }
       .container {
-        max-width: 720px;
+        max-width: 900px;
         margin: 0 auto;
-        padding: 24px;
+        padding: 0;
       }
-      .header {
-        background: #101010;
+      .greeting-header {
+        background-color: #000000;
         color: #ffffff;
-        padding: 32px 24px;
-        border-radius: 16px;
+        padding: 60px 40px;
         text-align: center;
+        border-bottom: 3px solid #000;
       }
-      .header h1 {
-        margin: 0;
-        font-size: 2.1rem;
+      .greeting-header h1 {
+        font-size: 2.8rem;
+        font-weight: 700;
+        margin-bottom: 8px;
+        font-family: Georgia, 'Times New Roman', serif;
+        letter-spacing: -0.5px;
       }
-      .header p {
-        margin: 12px 0 0;
-        color: #c7c7c7;
+      .greeting-header .user-name {
+        font-size: 1.4rem;
+        font-weight: 600;
+        color: #f0f0f0;
+        margin-bottom: 20px;
+        font-family: Georgia, 'Times New Roman', serif;
+      }
+      .greeting-header .intro {
+        font-size: 1rem;
+        color: #d0d0d0;
+        line-height: 1.8;
+        max-width: 600px;
+        margin: 0 auto;
       }
       .section {
-        margin-top: 24px;
+        background-color: #ffffff;
+        border-top: 1px solid #e5e5e5;
+        padding: 40px;
+      }
+      .section:first-of-type {
+        border-top: none;
+        padding-top: 50px;
       }
       .section h2 {
-        margin-bottom: 16px;
-        font-size: 1.4rem;
-        border-bottom: 2px solid #d7ccc8;
-        padding-bottom: 8px;
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: #000000;
+        margin-bottom: 35px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #000;
+        font-family: Georgia, 'Times New Roman', serif;
+        letter-spacing: -0.3px;
+      }
+      .section-content {
+        padding: 0;
       }
       .news-card {
-        background: #ffffff;
-        border-radius: 16px;
-        padding: 18px 22px;
-        margin-bottom: 16px;
-        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.05);
+        padding: 30px 0;
+        border-bottom: 1px solid #e5e5e5;
+        display: flex;
+        flex-direction: column;
+      }
+      .news-card:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+      }
+      .news-date {
+        font-size: 0.75rem;
+        color: #666666;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 12px;
       }
       .news-card h3 {
-        margin: 0 0 10px;
-        font-size: 1.1rem;
+        margin: 0 0 15px;
+        font-size: 1.5rem;
+        color: #000000;
+        line-height: 1.3;
+        font-family: Georgia, 'Times New Roman', serif;
+        font-weight: 700;
+        letter-spacing: -0.3px;
       }
       .news-card p {
-        margin: 0 0 10px;
-        line-height: 1.5;
-        color: #4a4a4a;
+        margin: 0 0 18px;
+        line-height: 1.7;
+        color: #333333;
+        font-size: 1rem;
+      }
+      .news-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        flex-wrap: wrap;
+        gap: 20px;
+        margin-top: 15px;
       }
       .news-meta {
-        font-size: 0.95rem;
-        color: #6f6f6f;
+        font-size: 0.9rem;
+        color: #555555;
+      }
+      .news-meta a {
+        color: #1a1a1a;
+        text-decoration: none;
+        font-weight: 600;
+        border-bottom: 1px solid #1a1a1a;
+      }
+      .news-meta a:hover {
+        background-color: #f0f0f0;
       }
       .tag {
         display: inline-block;
-        margin-top: 10px;
-        padding: 6px 10px;
-        border-radius: 999px;
-        background: #ece1d4;
-        color: #5b3a29;
-        font-size: 0.85rem;
+        padding: 8px 14px;
+        border-radius: 2px;
+        background-color: #f0f0f0;
+        color: #1a1a1a;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .read-more {
+        display: inline-block;
+        padding: 12px 24px;
+        background-color: #ffffff;
+        color: #1a1a1a;
+        text-decoration: none;
+        border: 1px solid #1a1a1a;
+        border-radius: 2px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        transition: all 0.2s ease;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .read-more:hover {
+        background-color: #1a1a1a;
+        color: #ffffff;
       }
       .footer {
-        margin-top: 32px;
-        font-size: 0.95rem;
-        color: #5b5b5b;
+        background-color: #f8f8f8;
+        padding: 30px 40px;
         text-align: center;
-      }
-      a {
-        color: #1b4d95;
-        text-decoration: none;
-      }
-      a:hover {
-        text-decoration: underline;
+        font-size: 0.85rem;
+        color: #666666;
+        border-top: 1px solid #e5e5e5;
       }
     </style>
   </head>
   <body>
     <div class="container">
-      <div class="header">
+      <div class="greeting-header">
         <h1>Daily Brief</h1>
-        <p>Resumen diario de noticias: internacional, USA, Europa y Argentina.</p>
+        <div class="user-name">Hola, {user_name}</div>
+        <div class="intro">
+          <p>Tu resumen diario de noticias verificadas y actualizadas. Aquí encontrarás información clara y concisa de los eventos más relevantes del día.</p>
+        </div>
       </div>
       {sections}
       <div class="footer">
-        <p>Este mail fue generado automáticamente con Anthropic + Gmail SMTP.</p>
+        <p>Daily Brief — Noticias verificadas de fuentes confiables. Actualizado diariamente con información clara y relevante.</p>
       </div>
     </div>
   </body>
@@ -150,16 +232,33 @@ def load_subscribers(path: str = "subscribers.csv") -> list[dict[str, str]]:
 
 
 def build_prompt(region: str) -> str:
+    today = datetime.now().strftime("%Y-%m-%d")
+    one_week_ago = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
     return (
-        "Eres un asistente de resúmenes de noticias con acceso a búsqueda web actualizada. "
-        "Genera exactamente 6 noticias reales del día para la región especificada. "
-        "Divide cada noticia en cinco campos: titulo, resumen, fuente, url y tema. "
+        "Eres un asistente especializado en obtener noticias verificadas y actualizadas. "
+        f"Hoy es {today}. "
+        "Genera exactamente 6 noticias REALES, VERIFICADAS Y ACTUALIZADAS de hoy o máximo los últimos 7 días para la región especificada. "
+        "MUY IMPORTANTE: Cada noticia DEBE incluir la fecha de publicación. Las noticias NO pueden ser más de 7 días de antiguas. "
+        "Divide cada noticia en seis campos: titulo, resumen, fuente, url, tema, fecha. "
+        "La fecha debe estar en formato YYYY-MM-DD. "
         "Usa solamente estos temas: política, economía, tecnología, IA, fintech, criptomonedas, startups, ciencia. "
+        "REQUISITOS CRÍTICOS DEL RESUMEN:\n"
+        "- El resumen DEBE ser DETALLADO (200-300 palabras), no corto\n"
+        "- Incluye información concreta: números, nombres, detalles específicos\n"
+        "- Explica el 'qué', 'por qué' y 'cómo' de la noticia\n"
+        "- Los lectores deben entender la noticia completa sin necesidad de hacer clic\n"
+        "- El botón 'Leer más' es opcional para quien quiera profundizar más\n"
+        "- NO hagas clickbait, sé claro y informativo\n"
+        "REQUISITOS GENERALES:\n"
+        "- Solo fuentes confiables y verificadas (Reuters, AP, Bloomberg, BBC, CNN, Guardian, etc)\n"
+        "- Actualidad comprobada (no más de 7 días)\n"
+        "- No repitas noticias que ya fueron enviadas en días anteriores\n"
+        "- URLs válidas y funcionales\n"
         "Devuelve una única estructura JSON válida con el siguiente formato:\n"
-        "{\"noticias\": [ {\"titulo\": \"...\", \"resumen\": \"...\", \"fuente\": \"...\", \"url\": \"...\", \"tema\": \"...\"} ]} \n"
+        "{\"noticias\": [ {\"titulo\": \"...\", \"resumen\": \"RESUMEN_DETALLADO_200_300_PALABRAS\", \"fuente\": \"...\", \"url\": \"...\", \"tema\": \"...\", \"fecha\": \"YYYY-MM-DD\"} ]} \n"
         "No agregues texto previo ni posterior. No envíes comentarios, explicaciones ni etiquetas fuera del JSON. "
         f"La región es: {region}. "
-        "Si no hay 6 noticias disponibles de la región, devuelve las mejores 6 noticias posibles en formato JSON válido."
+        "Si no hay 6 noticias disponibles de la región, devuelve las mejores noticias posibles (mínimo 3) en formato JSON válido."
     )
 
 
@@ -269,25 +368,46 @@ def fetch_news_for_region(region: str, api_key: str) -> list[dict[str, str]]:
             "fuente": str(item.get("fuente", "")).strip(),
             "url": str(item.get("url", "")).strip(),
             "tema": str(item.get("tema", "")).strip(),
+            "fecha": str(item.get("fecha", datetime.now().strftime("%Y-%m-%d"))).strip(),
         }
         for item in noticias[:NEWS_PER_REGION]
     ]
 
 
-def build_email_html(news_by_region: dict[str, list[dict[str, str]]]) -> str:
+def build_email_html(news_by_region: dict[str, list[dict[str, str]]], user_name: str = "suscriptor") -> str:
     sections = []
     for region, articles in news_by_region.items():
         cards = []
         for item in articles:
+            fecha = item.get("fecha", datetime.now().strftime("%Y-%m-%d"))
+            try:
+                fecha_formateada = datetime.strptime(fecha, "%Y-%m-%d").strftime("%d de %B de %Y")
+                # Traducir meses al español
+                meses = {
+                    "January": "enero", "February": "febrero", "March": "marzo",
+                    "April": "abril", "May": "mayo", "June": "junio",
+                    "July": "julio", "August": "agosto", "September": "septiembre",
+                    "October": "octubre", "November": "noviembre", "December": "diciembre"
+                }
+                for en, es in meses.items():
+                    fecha_formateada = fecha_formateada.replace(en, es)
+            except:
+                fecha_formateada = fecha
+            
             cards.append(
                 """
-        <div class=\"news-card\">
+        <div class="news-card">
+          <div class="news-date">{date}</div>
           <h3>{title}</h3>
           <p>{summary}</p>
-          <div class=\"news-meta\">Fuente: <a href=\"{url}\">{source}</a></div>
-          <div class=\"tag\">{topic}</div>
+          <div class="news-footer">
+            <div class="news-meta">Fuente: <a href="{url}">{source}</a></div>
+            <a href="{url}" class="read-more">Leer más →</a>
+          </div>
+          <div class="tag">{topic}</div>
         </div>
         """.format(
+                    date=escape_html(fecha_formateada),
                     title=escape_html(item["titulo"]),
                     summary=escape_html(item["resumen"]),
                     source=escape_html(item["fuente"]),
@@ -296,11 +416,13 @@ def build_email_html(news_by_region: dict[str, list[dict[str, str]]]) -> str:
                 )
             )
         sections.append(
-            "<div class=\"section\"><h2>{region}</h2>{cards}</div>".format(
+            '<div class="section"><h2>{region}</h2><div class="section-content">{cards}</div></div>'.format(
                 region=escape_html(region), cards="".join(cards)
             )
         )
-    return HTML_TEMPLATE.replace("{sections}", "\n".join(sections))
+    html = HTML_TEMPLATE.replace("{sections}", "\n".join(sections))
+    html = html.replace("{user_name}", escape_html(user_name))
+    return html
 
 
 def escape_html(value: str) -> str:
@@ -312,6 +434,54 @@ def escape_html(value: str) -> str:
         "'": "&#39;",
     }
     return "".join(replacements.get(ch, ch) for ch in value)
+
+
+def load_sent_news(filepath: str = "sent_news.json") -> dict[str, list[str]]:
+    """Carga el historial de noticias enviadas."""
+    if not os.path.exists(filepath):
+        return {}
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return {}
+
+
+def save_sent_news(news_by_region: dict[str, list[dict[str, str]]], filepath: str = "sent_news.json") -> None:
+    """Guarda el historial de noticias enviadas."""
+    sent_news = load_sent_news(filepath)
+    today = datetime.now().strftime("%Y-%m-%d")
+    
+    all_titles = []
+    for region, articles in news_by_region.items():
+        for article in articles:
+            all_titles.append(article["titulo"])
+    
+    sent_news[today] = all_titles
+    
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(sent_news, f, ensure_ascii=False, indent=2)
+
+
+def filter_recent_news(news_by_region: dict[str, list[dict[str, str]]]) -> dict[str, list[dict[str, str]]]:
+    """Filtra noticias para evitar duplicados en días anteriores."""
+    sent_news = load_sent_news()
+    
+    # Obtener títulos de las últimas 2 semanas
+    recent_titles = set()
+    for i in range(14):
+        date_key = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
+        if date_key in sent_news:
+            recent_titles.update(sent_news[date_key])
+    
+    filtered = {}
+    for region, articles in news_by_region.items():
+        filtered[region] = [
+            article for article in articles
+            if article["titulo"] not in recent_titles
+        ]
+    
+    return filtered
 
 
 def build_plain_text(news_by_region: dict[str, list[dict[str, str]]]) -> str:
@@ -392,9 +562,17 @@ def main() -> None:
         raise SystemExit("No se encontraron suscriptores activos.")
 
     news_by_region = collect_news(api_key)
-    html_body = build_email_html(news_by_region)
+    news_by_region = filter_recent_news(news_by_region)
+    
+    # Para el envío, usar el nombre del primer suscriptor activo (o suscriptor de prueba)
+    subscriber_name = active_subscribers[0]["nombre"] or "suscriptor"
+    
+    html_body = build_email_html(news_by_region, subscriber_name)
     text_body = build_plain_text(news_by_region)
-    subject = f"Daily Brief - Resumen de noticias ({datetime.utcnow():%Y-%m-%d})"
+    subject = f"Daily Brief - Resumen de noticias ({datetime.now():%Y-%m-%d})"
+    
+    # Guardar noticias enviadas
+    save_sent_news(news_by_region)
 
     if args.dry_run:
         with open(args.output, "w", encoding="utf-8") as f:
