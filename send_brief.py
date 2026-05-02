@@ -254,11 +254,9 @@ def build_prompt(region: str) -> str:
         "- Actualidad comprobada (no más de 7 días)\n"
         "- No repitas noticias que ya fueron enviadas en días anteriores\n"
         "- URLs válidas y funcionales\n"
-        "Devuelve una única estructura JSON válida con el siguiente formato:\n"
-        "{\"noticias\": [ {\"titulo\": \"...\", \"resumen\": \"RESUMEN_DETALLADO_200_300_PALABRAS\", \"fuente\": \"...\", \"url\": \"...\", \"tema\": \"...\", \"fecha\": \"YYYY-MM-DD\"} ]} \n"
-        "No agregues texto previo ni posterior. No envíes comentarios, explicaciones ni etiquetas fuera del JSON. "
         f"La región es: {region}. "
-        "Si no hay 6 noticias disponibles de la región, devuelve las mejores noticias posibles (mínimo 3) en formato JSON válido."
+        "Llama a la herramienta guardar_noticias con las noticias encontradas. "
+        "Si no hay 6 noticias disponibles, devuelve las mejores que tengas (mínimo 3)."
     )
 
 
@@ -331,6 +329,33 @@ def extract_text_from_response(result: dict[str, Any]) -> str:
     return text
 
 
+NEWS_TOOL = {
+    "name": "guardar_noticias",
+    "description": "Guarda las noticias encontradas para la región solicitada.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "noticias": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "titulo":  {"type": "string"},
+                        "resumen": {"type": "string"},
+                        "fuente":  {"type": "string"},
+                        "url":     {"type": "string"},
+                        "tema":    {"type": "string", "enum": ["política", "economía", "tecnología", "IA", "fintech", "criptomonedas", "startups", "ciencia"]},
+                        "fecha":   {"type": "string", "description": "Formato YYYY-MM-DD"},
+                    },
+                    "required": ["titulo", "resumen", "fuente", "url", "tema", "fecha"],
+                },
+            }
+        },
+        "required": ["noticias"],
+    },
+}
+
+
 def fetch_news_for_region(region: str, api_key: str, max_retries: int = 3) -> list[dict[str, str]]:
     prompt = build_prompt(region)
     headers = {
@@ -341,6 +366,8 @@ def fetch_news_for_region(region: str, api_key: str, max_retries: int = 3) -> li
     payload = {
         "model": MODEL,
         "messages": [{"role": "user", "content": prompt}],
+        "tools": [NEWS_TOOL],
+        "tool_choice": {"type": "tool", "name": "guardar_noticias"},
         "max_tokens": 4096,
     }
 
@@ -355,22 +382,19 @@ def fetch_news_for_region(region: str, api_key: str, max_retries: int = 3) -> li
             ) from exc
 
         result = response.json()
-        text = extract_text_from_response(result)
 
+        # Extraer el input del tool_use (siempre JSON válido garantizado por la API)
         try:
-            data = extract_json_from_response(text)
-        except (ValueError, json.JSONDecodeError) as exc:
+            tool_block = next(
+                b for b in result.get("content", [])
+                if isinstance(b, dict) and b.get("type") == "tool_use"
+            )
+            noticias = tool_block["input"]["noticias"]
+        except (StopIteration, KeyError, TypeError) as exc:
             last_exc = exc
-            print(f"  JSON inválido en intento {attempt + 1}/{max_retries} para {region}, reintentando...")
+            print(f"  Respuesta inesperada en intento {attempt + 1}/{max_retries} para {region}, reintentando...")
             time.sleep(3)
             continue
-
-        if isinstance(data, dict) and "noticias" in data:
-            noticias = data["noticias"]
-        elif isinstance(data, list):
-            noticias = data
-        else:
-            raise ValueError("El JSON devuelto no contiene el campo 'noticias'.")
 
         if not isinstance(noticias, list):
             raise ValueError("El campo 'noticias' debe ser una lista")
@@ -379,10 +403,10 @@ def fetch_news_for_region(region: str, api_key: str, max_retries: int = 3) -> li
             {
                 "titulo": str(item.get("titulo", "")).strip(),
                 "resumen": str(item.get("resumen", "")).strip(),
-                "fuente": str(item.get("fuente", "")).strip(),
-                "url": str(item.get("url", "")).strip(),
-                "tema": str(item.get("tema", "")).strip(),
-                "fecha": str(item.get("fecha", datetime.now().strftime("%Y-%m-%d"))).strip(),
+                "fuente":  str(item.get("fuente", "")).strip(),
+                "url":     str(item.get("url", "")).strip(),
+                "tema":    str(item.get("tema", "")).strip(),
+                "fecha":   str(item.get("fecha", datetime.now().strftime("%Y-%m-%d"))).strip(),
             }
             for item in noticias[:NEWS_PER_REGION]
         ]
