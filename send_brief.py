@@ -7,6 +7,7 @@ import json
 import os
 import re
 import smtplib
+import time
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -243,12 +244,11 @@ def build_prompt(region: str) -> str:
         "La fecha debe estar en formato YYYY-MM-DD. "
         "Usa solamente estos temas: política, economía, tecnología, IA, fintech, criptomonedas, startups, ciencia. "
         "REQUISITOS CRÍTICOS DEL RESUMEN:\n"
-        "- El resumen DEBE ser DETALLADO (200-300 palabras), no corto\n"
-        "- Incluye información concreta: números, nombres, detalles específicos\n"
-        "- Explica el 'qué', 'por qué' y 'cómo' de la noticia\n"
-        "- Los lectores deben entender la noticia completa sin necesidad de hacer clic\n"
-        "- El botón 'Leer más' es opcional para quien quiera profundizar más\n"
-        "- NO hagas clickbait, sé claro y informativo\n"
+        "- El resumen debe tener entre 100 y 150 palabras\n"
+        "- Incluye datos concretos: números, nombres, hechos clave\n"
+        "- Explica el qué, por qué y cómo de la noticia\n"
+        "- No uses comillas dobles ni caracteres especiales dentro del resumen\n"
+        "- NO hagas clickbait, sé claro e informativo\n"
         "REQUISITOS GENERALES:\n"
         "- Solo fuentes confiables y verificadas (Reuters, AP, Bloomberg, BBC, CNN, Guardian, etc)\n"
         "- Actualidad comprobada (no más de 7 días)\n"
@@ -267,7 +267,12 @@ def extract_json_from_response(text: str) -> Any:
     if not match:
         raise ValueError("No se encontró un bloque JSON válido en la respuesta del modelo")
     payload = match.group(1)
-    return json.loads(payload)
+    try:
+        return json.loads(payload)
+    except json.JSONDecodeError:
+        # Eliminar caracteres de control que rompen el JSON
+        cleaned = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', payload)
+        return json.loads(cleaned)
 
 
 def extract_text_from_response(result: dict[str, Any]) -> str:
@@ -326,7 +331,7 @@ def extract_text_from_response(result: dict[str, Any]) -> str:
     return text
 
 
-def fetch_news_for_region(region: str, api_key: str) -> list[dict[str, str]]:
+def fetch_news_for_region(region: str, api_key: str, max_retries: int = 3) -> list[dict[str, str]]:
     prompt = build_prompt(region)
     headers = {
         "Content-Type": "application/json",
@@ -339,39 +344,50 @@ def fetch_news_for_region(region: str, api_key: str) -> list[dict[str, str]]:
         "max_tokens": 4096,
     }
 
-    response = requests.post(ANTHROPIC_API_URL, headers=headers, json=payload, timeout=60)
-    try:
-        response.raise_for_status()
-    except requests.exceptions.HTTPError as exc:
-        raise RuntimeError(
-            f"Anthropic API error {response.status_code}: {response.text.strip() or exc}"
-        ) from exc
+    last_exc: Exception = RuntimeError("Sin intentos")
+    for attempt in range(max_retries):
+        response = requests.post(ANTHROPIC_API_URL, headers=headers, json=payload, timeout=60)
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as exc:
+            raise RuntimeError(
+                f"Anthropic API error {response.status_code}: {response.text.strip() or exc}"
+            ) from exc
 
-    result = response.json()
-    text = extract_text_from_response(result)
+        result = response.json()
+        text = extract_text_from_response(result)
 
-    data = extract_json_from_response(text)
-    if isinstance(data, dict) and "noticias" in data:
-        noticias = data["noticias"]
-    elif isinstance(data, list):
-        noticias = data
-    else:
-        raise ValueError("El JSON devuelto no contiene el campo 'noticias'.")
+        try:
+            data = extract_json_from_response(text)
+        except (ValueError, json.JSONDecodeError) as exc:
+            last_exc = exc
+            print(f"  JSON inválido en intento {attempt + 1}/{max_retries} para {region}, reintentando...")
+            time.sleep(3)
+            continue
 
-    if not isinstance(noticias, list):
-        raise ValueError("El campo 'noticias' debe ser una lista")
+        if isinstance(data, dict) and "noticias" in data:
+            noticias = data["noticias"]
+        elif isinstance(data, list):
+            noticias = data
+        else:
+            raise ValueError("El JSON devuelto no contiene el campo 'noticias'.")
 
-    return [
-        {
-            "titulo": str(item.get("titulo", "")).strip(),
-            "resumen": str(item.get("resumen", "")).strip(),
-            "fuente": str(item.get("fuente", "")).strip(),
-            "url": str(item.get("url", "")).strip(),
-            "tema": str(item.get("tema", "")).strip(),
-            "fecha": str(item.get("fecha", datetime.now().strftime("%Y-%m-%d"))).strip(),
-        }
-        for item in noticias[:NEWS_PER_REGION]
-    ]
+        if not isinstance(noticias, list):
+            raise ValueError("El campo 'noticias' debe ser una lista")
+
+        return [
+            {
+                "titulo": str(item.get("titulo", "")).strip(),
+                "resumen": str(item.get("resumen", "")).strip(),
+                "fuente": str(item.get("fuente", "")).strip(),
+                "url": str(item.get("url", "")).strip(),
+                "tema": str(item.get("tema", "")).strip(),
+                "fecha": str(item.get("fecha", datetime.now().strftime("%Y-%m-%d"))).strip(),
+            }
+            for item in noticias[:NEWS_PER_REGION]
+        ]
+
+    raise last_exc
 
 
 def build_email_html(news_by_region: dict[str, list[dict[str, str]]], user_name: str = "suscriptor") -> str:
