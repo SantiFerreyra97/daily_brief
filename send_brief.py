@@ -44,171 +44,183 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         box-sizing: border-box;
       }
       body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
-        background-color: #ffffff;
-        color: #1a1a1a;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Helvetica Neue', Arial, sans-serif;
+        background-color: #f8fafc;
+        color: #1e293b;
         line-height: 1.6;
       }
+      .wrapper {
+        background-color: #f8fafc;
+        padding: 24px 16px 48px;
+      }
       .container {
-        max-width: 900px;
+        max-width: 680px;
         margin: 0 auto;
-        padding: 0;
       }
-      .greeting-header {
-        background-color: #000000;
-        color: #ffffff;
-        padding: 60px 40px;
+      .header {
+        background: #0f172a;
+        border-radius: 16px;
+        padding: 52px 40px 44px;
         text-align: center;
-        border-bottom: 3px solid #000;
-      }
-      .greeting-header h1 {
-        font-size: 2.8rem;
-        font-weight: 700;
         margin-bottom: 8px;
-        font-family: Georgia, 'Times New Roman', serif;
-        letter-spacing: -0.5px;
+        overflow: hidden;
       }
-      .greeting-header .user-name {
-        font-size: 1.4rem;
-        font-weight: 600;
-        color: #f0f0f0;
-        margin-bottom: 20px;
-        font-family: Georgia, 'Times New Roman', serif;
-      }
-      .greeting-header .intro {
-        font-size: 1rem;
-        color: #d0d0d0;
-        line-height: 1.8;
-        max-width: 600px;
-        margin: 0 auto;
-      }
-      .section {
-        background-color: #ffffff;
-        border-top: 1px solid #e5e5e5;
-        padding: 40px;
-      }
-      .section:first-of-type {
-        border-top: none;
-        padding-top: 50px;
-      }
-      .section h2 {
-        font-size: 1.6rem;
+      .header-eyebrow {
+        font-size: 0.68rem;
         font-weight: 700;
-        color: #000000;
-        margin-bottom: 35px;
-        padding-bottom: 15px;
-        border-bottom: 2px solid #000;
-        font-family: Georgia, 'Times New Roman', serif;
-        letter-spacing: -0.3px;
-      }
-      .section-content {
-        padding: 0;
-      }
-      .news-card {
-        padding: 30px 0;
-        border-bottom: 1px solid #e5e5e5;
-        display: flex;
-        flex-direction: column;
-      }
-      .news-card:last-child {
-        border-bottom: none;
-        padding-bottom: 0;
-      }
-      .news-date {
-        font-size: 0.75rem;
-        color: #666666;
-        font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 4px;
+        color: #60a5fa;
+        margin-bottom: 16px;
+      }
+      .header h1 {
+        font-size: 2.2rem;
+        font-weight: 800;
+        color: #ffffff;
+        letter-spacing: -0.5px;
+        line-height: 1.25;
         margin-bottom: 12px;
       }
-      .news-card h3 {
-        margin: 0 0 15px;
-        font-size: 1.5rem;
-        color: #000000;
-        line-height: 1.3;
-        font-family: Georgia, 'Times New Roman', serif;
-        font-weight: 700;
-        letter-spacing: -0.3px;
+      .header h1 .name {
+        color: #93c5fd;
       }
-      .news-card p {
-        margin: 0 0 18px;
-        line-height: 1.7;
-        color: #333333;
-        font-size: 1rem;
-      }
-      .news-footer {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-end;
-        flex-wrap: wrap;
-        gap: 20px;
-        margin-top: 15px;
-      }
-      .news-meta {
+      .header .subtitle {
         font-size: 0.9rem;
-        color: #555555;
+        color: #94a3b8;
+        line-height: 1.6;
       }
-      .news-meta a {
-        color: #1a1a1a;
-        text-decoration: none;
-        font-weight: 600;
-        border-bottom: 1px solid #1a1a1a;
+      .section {
+        margin-top: 36px;
       }
-      .news-meta a:hover {
-        background-color: #f0f0f0;
+      .section-label {
+        display: block;
+        font-size: 0.68rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 3px;
+        color: #64748b;
+        margin-bottom: 6px;
+      }
+      .section-divider {
+        height: 2px;
+        background: linear-gradient(to right, #3b82f6 0%, transparent 70%);
+        border-radius: 1px;
+        margin-bottom: 16px;
+      }
+      .news-card {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 12px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      }
+      .card-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+        flex-wrap: wrap;
+        gap: 8px;
       }
       .tag {
         display: inline-block;
-        padding: 8px 14px;
-        border-radius: 2px;
-        background-color: #f0f0f0;
-        color: #1a1a1a;
-        font-size: 0.75rem;
+        font-size: 0.68rem;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.5px;
+        padding: 4px 10px;
+        border-radius: 20px;
+        background: #eff6ff;
+        color: #1d4ed8;
+      }
+      .news-date {
+        font-size: 0.78rem;
+        color: #94a3b8;
+      }
+      .news-card h3 {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #0f172a;
+        line-height: 1.4;
+        margin-bottom: 10px;
+      }
+      .news-card p {
+        font-size: 0.92rem;
+        color: #475569;
+        line-height: 1.75;
+        margin-bottom: 16px;
+      }
+      .card-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-top: 1px solid #f1f5f9;
+        padding-top: 14px;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .news-source {
+        font-size: 0.8rem;
+        color: #94a3b8;
+      }
+      .news-source a {
+        color: #64748b;
+        text-decoration: none;
+        font-weight: 600;
       }
       .read-more {
-        display: inline-block;
-        padding: 12px 24px;
-        background-color: #ffffff;
-        color: #1a1a1a;
-        text-decoration: none;
-        border: 1px solid #1a1a1a;
-        border-radius: 2px;
-        font-size: 0.9rem;
+        font-size: 0.82rem;
         font-weight: 600;
-        transition: all 0.2s ease;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-      }
-      .read-more:hover {
-        background-color: #1a1a1a;
-        color: #ffffff;
+        color: #2563eb;
+        text-decoration: none;
+        white-space: nowrap;
       }
       .footer {
-        background-color: #f8f8f8;
-        padding: 30px 40px;
         text-align: center;
-        font-size: 0.85rem;
-        color: #666666;
-        border-top: 1px solid #e5e5e5;
+        padding: 36px 20px 8px;
+        font-size: 0.78rem;
+        color: #94a3b8;
+        line-height: 2;
+      }
+      @media screen and (max-width: 600px) {
+        .wrapper {
+          padding: 12px 10px 36px;
+        }
+        .header {
+          padding: 36px 20px 32px;
+          border-radius: 12px;
+        }
+        .header h1 {
+          font-size: 1.75rem;
+        }
+        .news-card {
+          padding: 18px 16px;
+          border-radius: 10px;
+        }
+        .news-card h3 {
+          font-size: 1rem;
+        }
+        .card-footer {
+          flex-direction: column;
+          align-items: flex-start;
+        }
       }
     </style>
   </head>
   <body>
-    <div class="container">
-      <div class="greeting-header">
-        <h1>Daily Brief</h1>
-        <div class="user-name">Hola, {user_name}</div>
-        <div class="intro">
-          <p>Tu resumen diario de noticias verificadas y actualizadas. Aquí encontrarás información clara y concisa de los eventos más relevantes del día.</p>
+    <div class="wrapper">
+      <div class="container">
+        <div class="header">
+          <div class="header-eyebrow">Daily Brief</div>
+          <h1>Buenos días, <span class="name">{user_name}</span></h1>
+          <p class="subtitle">Tu resumen de noticias verificadas y actualizadas</p>
         </div>
-      </div>
-      {sections}
-      <div class="footer">
-        <p>Daily Brief — Noticias verificadas de fuentes confiables. Actualizado diariamente con información clara y relevante.</p>
+        {sections}
+        <div class="footer">
+          <p>Daily Brief — Noticias verificadas de fuentes confiables.</p>
+          <p>Actualizado diariamente con información clara y relevante.</p>
+        </div>
       </div>
     </div>
   </body>
@@ -437,14 +449,16 @@ def build_email_html(news_by_region: dict[str, list[dict[str, str]]], user_name:
             cards.append(
                 """
         <div class="news-card">
-          <div class="news-date">{date}</div>
+          <div class="card-meta">
+            <span class="tag">{topic}</span>
+            <span class="news-date">{date}</span>
+          </div>
           <h3>{title}</h3>
           <p>{summary}</p>
-          <div class="news-footer">
-            <div class="news-meta">Fuente: <a href="{url}">{source}</a></div>
+          <div class="card-footer">
+            <span class="news-source">Fuente: <a href="{url}">{source}</a></span>
             <a href="{url}" class="read-more">Leer más →</a>
           </div>
-          <div class="tag">{topic}</div>
         </div>
         """.format(
                     date=escape_html(fecha_formateada),
@@ -456,7 +470,7 @@ def build_email_html(news_by_region: dict[str, list[dict[str, str]]], user_name:
                 )
             )
         sections.append(
-            '<div class="section"><h2>{region}</h2><div class="section-content">{cards}</div></div>'.format(
+            '<div class="section"><span class="section-label">{region}</span><div class="section-divider"></div><div class="section-content">{cards}</div></div>'.format(
                 region=escape_html(region), cards="".join(cards)
             )
         )
