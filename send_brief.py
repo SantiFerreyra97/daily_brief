@@ -13,6 +13,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Any
 
+import feedparser
 import requests
 
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
@@ -20,6 +21,26 @@ MODEL = os.getenv("ANTHROPIC_MODEL", "claude-opus-4-7")
 NEWS_PER_REGION = 6
 
 REGIONS = ["Internacional", "USA", "Europa", "Argentina"]
+
+RSS_FEEDS: dict[str, list[str]] = {
+    "Internacional": [
+        "https://feeds.bbci.co.uk/mundo/noticias/rss.xml",
+        "https://feeds.bbci.co.uk/news/world/rss.xml",
+    ],
+    "USA": [
+        "https://feeds.bbci.co.uk/mundo/noticias/eeuu_canada/rss.xml",
+        "https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml",
+    ],
+    "Europa": [
+        "https://feeds.bbci.co.uk/mundo/noticias/europa/rss.xml",
+        "https://feeds.bbci.co.uk/news/world/europe/rss.xml",
+    ],
+    "Argentina": [
+        "https://www.infobae.com/feeds/rss/",
+        "https://feeds.bbci.co.uk/mundo/noticias/america_latina/rss.xml",
+    ],
+}
+
 TOPICS = [
     "política",
     "economía",
@@ -244,31 +265,50 @@ def load_subscribers(path: str = "subscribers.csv") -> list[dict[str, str]]:
     return subscribers
 
 
-def build_prompt(region: str) -> str:
+def fetch_rss_articles(region: str) -> list[dict[str, str]]:
+    articles: list[dict[str, str]] = []
+    for feed_url in RSS_FEEDS.get(region, []):
+        try:
+            feed = feedparser.parse(feed_url)
+            feed_title = feed.feed.get("title", feed_url.split("/")[2])
+            for entry in feed.entries[:15]:
+                link = entry.get("link", "").strip()
+                title = entry.get("title", "").strip()
+                summary = entry.get("summary", entry.get("description", "")).strip()
+                published = entry.get("published", "")
+                if title and link:
+                    articles.append({
+                        "titulo": title,
+                        "descripcion": re.sub(r"<[^>]+>", "", summary)[:400],
+                        "url": link,
+                        "fuente": feed_title,
+                        "fecha_pub": published,
+                    })
+        except Exception as exc:
+            print(f"  Warning: error en feed {feed_url}: {exc}")
+    return articles[:25]
+
+
+def build_prompt(region: str, raw_articles: list[dict[str, str]]) -> str:
     today = datetime.now().strftime("%Y-%m-%d")
-    one_week_ago = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+    articles_text = "\n\n".join(
+        f"[{i+1}] Título: {a['titulo']}\n"
+        f"    Fuente: {a['fuente']}\n"
+        f"    URL: {a['url']}\n"
+        f"    Fecha: {a['fecha_pub']}\n"
+        f"    Descripción: {a['descripcion']}"
+        for i, a in enumerate(raw_articles)
+    )
     return (
-        "Eres un asistente especializado en obtener noticias verificadas y actualizadas. "
-        f"Hoy es {today}. "
-        "Genera exactamente 6 noticias REALES, VERIFICADAS Y ACTUALIZADAS de hoy o máximo los últimos 7 días para la región especificada. "
-        "MUY IMPORTANTE: Cada noticia DEBE incluir la fecha de publicación. Las noticias NO pueden ser más de 7 días de antiguas. "
-        "Divide cada noticia en seis campos: titulo, resumen, fuente, url, tema, fecha. "
-        "La fecha debe estar en formato YYYY-MM-DD. "
-        "Usa solamente estos temas: política, economía, tecnología, IA, fintech, criptomonedas, startups, ciencia. "
-        "REQUISITOS CRÍTICOS DEL RESUMEN:\n"
-        "- El resumen debe tener entre 100 y 150 palabras\n"
-        "- Incluye datos concretos: números, nombres, hechos clave\n"
-        "- Explica el qué, por qué y cómo de la noticia\n"
-        "- No uses comillas dobles ni caracteres especiales dentro del resumen\n"
-        "- NO hagas clickbait, sé claro e informativo\n"
-        "REQUISITOS GENERALES:\n"
-        "- Solo fuentes confiables y verificadas (Reuters, AP, Bloomberg, BBC, CNN, Guardian, etc)\n"
-        "- Actualidad comprobada (no más de 7 días)\n"
-        "- No repitas noticias que ya fueron enviadas en días anteriores\n"
-        "- URLs válidas y funcionales\n"
-        f"La región es: {region}. "
-        "Llama a la herramienta guardar_noticias con las noticias encontradas. "
-        "Si no hay 6 noticias disponibles, devuelve las mejores que tengas (mínimo 3)."
+        f"Hoy es {today}. Estos son artículos REALES obtenidos de fuentes confiables para la región {region}:\n\n"
+        f"{articles_text}\n\n"
+        "Selecciona los 6 más relevantes e interesantes. Para cada uno:\n"
+        "- Escribe un resumen en español claro y detallado de 100-150 palabras\n"
+        "- USA EXACTAMENTE la URL y fuente del artículo (no las modifiques ni inventes otras)\n"
+        "- Usa la fecha de publicación en formato YYYY-MM-DD\n"
+        "- Asigna el tema más apropiado\n"
+        "Llama a la herramienta guardar_noticias con los artículos seleccionados. "
+        "Si hay menos de 6, devuelve todos los disponibles."
     )
 
 
@@ -369,7 +409,11 @@ NEWS_TOOL = {
 
 
 def fetch_news_for_region(region: str, api_key: str, max_retries: int = 3) -> list[dict[str, str]]:
-    prompt = build_prompt(region)
+    raw_articles = fetch_rss_articles(region)
+    print(f"  {len(raw_articles)} artículos RSS obtenidos para {region}")
+    if not raw_articles:
+        raise RuntimeError(f"No se pudieron obtener artículos RSS para {region}")
+    prompt = build_prompt(region, raw_articles)
     headers = {
         "Content-Type": "application/json",
         "x-api-key": api_key,
@@ -617,18 +661,14 @@ def main() -> None:
 
     news_by_region = collect_news(api_key)
     news_by_region = filter_recent_news(news_by_region)
-    
-    # Para el envío, usar el nombre del primer suscriptor activo (o suscriptor de prueba)
-    subscriber_name = active_subscribers[0]["nombre"] or "suscriptor"
-    
-    html_body = build_email_html(news_by_region, subscriber_name)
-    text_body = build_plain_text(news_by_region)
-    subject = f"Daily Brief - Resumen de noticias ({datetime.now():%Y-%m-%d})"
-    
-    # Guardar noticias enviadas
     save_sent_news(news_by_region)
 
+    text_body = build_plain_text(news_by_region)
+    subject = f"Daily Brief - Resumen de noticias ({datetime.now():%Y-%m-%d})"
+
     if args.dry_run:
+        first_name = active_subscribers[0]["nombre"] or "suscriptor"
+        html_body = build_email_html(news_by_region, first_name)
         with open(args.output, "w", encoding="utf-8") as f:
             f.write(html_body)
         print(f"Dry run completo. HTML guardado en {args.output}")
@@ -637,6 +677,7 @@ def main() -> None:
     for subscriber in active_subscribers:
         email = subscriber["email"]
         nombre = subscriber["nombre"] or "suscriptor"
+        html_body = build_email_html(news_by_region, nombre)
         print(f"Enviando a {email}...")
         try:
             send_email(smtp_user, smtp_password, email, nombre, subject, html_body, text_body)
