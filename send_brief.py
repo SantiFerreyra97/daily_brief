@@ -336,7 +336,7 @@ def fetch_news_for_region(region: str, api_key: str) -> list[dict[str, str]]:
     payload = {
         "model": MODEL,
         "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 1700,
+        "max_tokens": 4096,
     }
 
     response = requests.post(ANTHROPIC_API_URL, headers=headers, json=payload, timeout=60)
