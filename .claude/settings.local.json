@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "PowerShell(gh run *)",
+      "PowerShell(gh workflow *)",
+      "PowerShell(gh *)",
+      "Bash(.venv/Scripts/python.exe -c \"import send_brief; print\\('OK - sin errores de sintaxis'\\)\")",
+      "Bash(.venv/Scripts/python.exe -m py_compile send_brief.py)",
+      "Bash(.venv/Scripts/pip install *)",
+      "Bash(.venv/Scripts/python.exe send_brief.py --dry-run --output brief_preview.html)",
+      "Bash(GMAIL_USER=test@test.com GMAIL_APP_PASSWORD=test .venv/Scripts/python.exe send_brief.py --dry-run --output brief_preview.html)",
+      "Bash(start *)"
+    ]
+  }
+}

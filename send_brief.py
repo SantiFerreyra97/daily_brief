@@ -18,7 +18,7 @@ import requests
 from time import mktime
 
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
-MODEL = os.getenv("ANTHROPIC_MODEL", "claude-opus-4-7")
+MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")
 NEWS_PER_REGION = 6
 MAX_ARTICLE_AGE_DAYS = 2
 
