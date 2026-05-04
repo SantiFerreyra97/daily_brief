@@ -15,30 +15,71 @@ from typing import Any
 
 import feedparser
 import requests
+from time import mktime
 
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 MODEL = os.getenv("ANTHROPIC_MODEL", "claude-opus-4-7")
 NEWS_PER_REGION = 6
+MAX_ARTICLE_AGE_DAYS = 2
 
 REGIONS = ["Internacional", "USA", "Europa", "Argentina"]
 
 RSS_FEEDS: dict[str, list[str]] = {
     "Internacional": [
-        "https://feeds.bbci.co.uk/mundo/noticias/rss.xml",
         "https://feeds.bbci.co.uk/news/world/rss.xml",
+        "https://feeds.reuters.com/reuters/worldNews",
+        "https://feeds.apnews.com/rss/apf-topnews",
+        "https://feeds.bbci.co.uk/mundo/noticias/rss.xml",
     ],
     "USA": [
-        "https://feeds.bbci.co.uk/mundo/noticias/eeuu_canada/rss.xml",
+        "https://feeds.npr.org/1001/rss.xml",
+        "https://rss.nytimes.com/services/xml/rss/nyt/US.xml",
+        "https://www.theguardian.com/us-news/rss",
         "https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml",
     ],
     "Europa": [
-        "https://feeds.bbci.co.uk/mundo/noticias/europa/rss.xml",
+        "https://rss.dw.com/rdf/rss-en-world",
+        "https://www.france24.com/en/europe/rss",
+        "https://www.theguardian.com/world/europe-news/rss",
         "https://feeds.bbci.co.uk/news/world/europe/rss.xml",
     ],
     "Argentina": [
         "https://www.infobae.com/feeds/rss/",
+        "https://chequeado.com/feed/",
+        "https://www.lanacion.com.ar/arcio/rss/",
         "https://feeds.bbci.co.uk/mundo/noticias/america_latina/rss.xml",
     ],
+}
+
+REGION_COLORS: dict[str, dict[str, str]] = {
+    "Internacional": {
+        "accent":   "#2563eb",
+        "tag_bg":   "#eff6ff",
+        "tag_text": "#1d4ed8",
+        "title":    "#1e3a5f",
+        "label":    "#1d4ed8",
+    },
+    "USA": {
+        "accent":   "#dc2626",
+        "tag_bg":   "#fee2e2",
+        "tag_text": "#b91c1c",
+        "title":    "#7f1d1d",
+        "label":    "#dc2626",
+    },
+    "Europa": {
+        "accent":   "#16a34a",
+        "tag_bg":   "#dcfce7",
+        "tag_text": "#15803d",
+        "title":    "#14532d",
+        "label":    "#16a34a",
+    },
+    "Argentina": {
+        "accent":   "#d97706",
+        "tag_bg":   "#fef9c3",
+        "tag_text": "#b45309",
+        "title":    "#78350f",
+        "label":    "#d97706",
+    },
 }
 
 TOPICS = [
@@ -115,12 +156,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       }
       .section-label {
         display: block;
-        font-size: 0.68rem;
+        font-size: 1rem;
         font-weight: 800;
         text-transform: uppercase;
         letter-spacing: 3px;
-        color: #64748b;
-        margin-bottom: 6px;
+        color: #1e293b;
+        margin-bottom: 8px;
       }
       .section-divider {
         height: 2px;
@@ -267,15 +308,27 @@ def load_subscribers(path: str = "subscribers.csv") -> list[dict[str, str]]:
 
 def fetch_rss_articles(region: str) -> list[dict[str, str]]:
     articles: list[dict[str, str]] = []
+    cutoff = datetime.now() - timedelta(days=MAX_ARTICLE_AGE_DAYS)
     for feed_url in RSS_FEEDS.get(region, []):
         try:
             feed = feedparser.parse(feed_url)
             feed_title = feed.feed.get("title", feed_url.split("/")[2])
-            for entry in feed.entries[:15]:
+            for entry in feed.entries[:20]:
                 link = entry.get("link", "").strip()
                 title = entry.get("title", "").strip()
                 summary = entry.get("summary", entry.get("description", "")).strip()
                 published = entry.get("published", "")
+
+                # Filtrar artículos con más de MAX_ARTICLE_AGE_DAYS días
+                pub_struct = entry.get("published_parsed") or entry.get("updated_parsed")
+                if pub_struct:
+                    try:
+                        pub_dt = datetime.fromtimestamp(mktime(pub_struct))
+                        if pub_dt < cutoff:
+                            continue
+                    except (OverflowError, OSError, ValueError):
+                        pass
+
                 if title and link:
                     articles.append({
                         "titulo": title,
@@ -286,7 +339,7 @@ def fetch_rss_articles(region: str) -> list[dict[str, str]]:
                     })
         except Exception as exc:
             print(f"  Warning: error en feed {feed_url}: {exc}")
-    return articles[:25]
+    return articles[:30]
 
 
 def build_prompt(region: str, raw_articles: list[dict[str, str]]) -> str:
@@ -302,11 +355,15 @@ def build_prompt(region: str, raw_articles: list[dict[str, str]]) -> str:
     return (
         f"Hoy es {today}. Estos son artículos REALES obtenidos de fuentes confiables para la región {region}:\n\n"
         f"{articles_text}\n\n"
-        "Selecciona los 6 más relevantes e interesantes. Para cada uno:\n"
-        "- Escribe un resumen en español claro y detallado de 100-150 palabras\n"
-        "- USA EXACTAMENTE la URL y fuente del artículo (no las modifiques ni inventes otras)\n"
-        "- Usa la fecha de publicación en formato YYYY-MM-DD\n"
-        "- Asigna el tema más apropiado\n"
+        "Selecciona los 6 más relevantes e interesantes siguiendo ESTAS REGLAS ESTRICTAS:\n"
+        "- Solo incluir noticias con fecha de publicación dentro de los últimos 2 días\n"
+        "- NO repetir noticias sobre el mismo tema o evento aunque vengan de distintas fuentes\n"
+        "- Si dos artículos cubren el mismo hecho, elige el de la fuente más reconocida\n"
+        "- Para cada noticia seleccionada:\n"
+        "  * Escribe un resumen en español claro y detallado de 100-150 palabras\n"
+        "  * USA EXACTAMENTE la URL y fuente del artículo (no las modifiques ni inventes otras)\n"
+        "  * Usa la fecha de publicación en formato YYYY-MM-DD\n"
+        "  * Asigna el tema más apropiado\n"
         "Llama a la herramienta guardar_noticias con los artículos seleccionados. "
         "Si hay menos de 6, devuelve todos los disponibles."
     )
@@ -490,18 +547,19 @@ def build_email_html(news_by_region: dict[str, list[dict[str, str]]], user_name:
             except:
                 fecha_formateada = fecha
             
+            color = REGION_COLORS.get(region, REGION_COLORS["Internacional"])
             cards.append(
                 """
         <div class="news-card">
           <div class="card-meta">
-            <span class="tag">{topic}</span>
+            <span class="tag" style="background:{tag_bg};color:{tag_text}">{topic}</span>
             <span class="news-date">{date}</span>
           </div>
-          <h3>{title}</h3>
+          <h3 style="color:{title_color}">{title}</h3>
           <p>{summary}</p>
           <div class="card-footer">
-            <span class="news-source">Fuente: <a href="{url}">{source}</a></span>
-            <a href="{url}" class="read-more">Leer más →</a>
+            <span class="news-source">Fuente: <a href="{url}" style="color:{accent}">{source}</a></span>
+            <a href="{url}" class="read-more" style="color:{accent}">Leer más →</a>
           </div>
         </div>
         """.format(
@@ -511,11 +569,23 @@ def build_email_html(news_by_region: dict[str, list[dict[str, str]]], user_name:
                     source=escape_html(item["fuente"]),
                     url=escape_html(item["url"]),
                     topic=escape_html(item["tema"]),
+                    tag_bg=color["tag_bg"],
+                    tag_text=color["tag_text"],
+                    title_color=color["title"],
+                    accent=color["accent"],
                 )
             )
+        color = REGION_COLORS.get(region, REGION_COLORS["Internacional"])
         sections.append(
-            '<div class="section"><span class="section-label">{region}</span><div class="section-divider"></div><div class="section-content">{cards}</div></div>'.format(
-                region=escape_html(region), cards="".join(cards)
+            '<div class="section">'
+            '<span class="section-label" style="color:{label_color}">{region}</span>'
+            '<div class="section-divider" style="background:linear-gradient(to right,{accent} 0%,transparent 70%)"></div>'
+            '<div class="section-content">{cards}</div>'
+            '</div>'.format(
+                region=escape_html(region),
+                cards="".join(cards),
+                label_color=color["label"],
+                accent=color["accent"],
             )
         )
     html = HTML_TEMPLATE.replace("{sections}", "\n".join(sections))
@@ -580,6 +650,25 @@ def filter_recent_news(news_by_region: dict[str, list[dict[str, str]]]) -> dict[
         ]
     
     return filtered
+
+
+def deduplicate_across_regions(news_by_region: dict[str, list[dict[str, str]]]) -> dict[str, list[dict[str, str]]]:
+    """Elimina noticias cuyo título ya apareció en una región anterior."""
+    seen: set[str] = set()
+    result: dict[str, list[dict[str, str]]] = {}
+    for region in REGIONS:
+        articles = news_by_region.get(region, [])
+        unique = []
+        for article in articles:
+            norm = re.sub(r"[^\w\s]", "", article["titulo"].lower()).strip()
+            if norm not in seen:
+                seen.add(norm)
+                unique.append(article)
+        removed = len(articles) - len(unique)
+        if removed:
+            print(f"  Dedup entre regiones: {removed} duplicado(s) eliminado(s) en {region}")
+        result[region] = unique
+    return result
 
 
 def build_plain_text(news_by_region: dict[str, list[dict[str, str]]]) -> str:
@@ -661,6 +750,7 @@ def main() -> None:
 
     news_by_region = collect_news(api_key)
     news_by_region = filter_recent_news(news_by_region)
+    news_by_region = deduplicate_across_regions(news_by_region)
     save_sent_news(news_by_region)
 
     text_body = build_plain_text(news_by_region)
