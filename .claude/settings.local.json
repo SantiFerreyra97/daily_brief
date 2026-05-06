@@ -12,7 +12,11 @@
       "Bash(.venv/Scripts/pip install *)",
       "Bash(.venv/Scripts/python.exe send_brief.py --dry-run --output brief_preview.html)",
       "Bash(GMAIL_USER=test@test.com GMAIL_APP_PASSWORD=test .venv/Scripts/python.exe send_brief.py --dry-run --output brief_preview.html)",
-      "Bash(start *)"
+      "Bash(start *)",
+      "Bash(ls \"C:\\\\Users\\\\santi\\\\OneDrive\\\\Desktop\\\\\")",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\santi\\\\OneDrive\\\\Desktop\\\\docassist\\\\frontend\\\\src\" -Recurse -File | Where-Object { $_.Extension -in '.ts', '.tsx' } | Select-Object FullName | Sort-Object FullName)",
+      "PowerShell(& psql --version 2>&1)",
+      "PowerShell(& pg_ctl --version 2>&1)"
     ]
   }
 }
